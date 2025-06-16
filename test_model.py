@@ -1,26 +1,75 @@
 from diffusers import DiffusionPipeline
 import os
 from huggingface_hub import login
+import torch
+from diffusers import DiffusionPipeline
+from diffusers.utils import export_to_video
+from diffusers import AutoencoderKLWan, WanPipeline
+from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
+from diffusers import StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
+from diffusers import FluxControlPipeline, FluxTransformer2DModel
+from diffusers.utils import load_image
+from image_gen_aux import DepthPreprocessor
+
+from diffusers import AutoencoderKLWan, WanImageToVideoPipeline
+from diffusers.utils import export_to_video, load_image
+from transformers import CLIPVisionModel
 
 os.environ['HF_HOME'] = '/home/herongshen/relighting/models'
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 login(token="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")
 
+model_id = "Wan-AI/Wan2.1-VACE-1.3B"
+# pipe = DiffusionPipeline.from_pretrained("Wan-AI/Wan2.1-VACE-1.3B")
+
+pipe = WanPipeline.from_pretrained("Wan-AI/Wan2.1-VACE-1.3B", torch_dtype=torch.bfloat16)
+# pipe.to("cuda")
+
+#============================
+
+# model_id = "Wan-AI/Wan2.1-I2V-14B-720P-Diffusers"
+# image_encoder = CLIPVisionModel.from_pretrained(model_id, subfolder="image_encoder", torch_dtype=torch.float32)
+# vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32)
+# model = WanImageToVideoPipeline.from_pretrained(model_id, vae=vae, image_encoder=image_encoder, torch_dtype=torch.bfloat16)
+# model.to(device)
+# model.to()
+
 # ============================
 
-pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev")
-
-prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
-image = pipe(prompt).images[0]
-
-# from diffusers import DiffusionPipeline
-
-# ============================
-
-# pipe = DiffusionPipeline.from_pretrained("timbrooks/instruct-pix2pix")
+# pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev")
 
 # prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
 # image = pipe(prompt).images[0]
+# pipe = FluxControlPipeline.from_pretrained("black-forest-labs/FLUX.1-Depth-dev", torch_dtype=torch.bfloat16).to("cuda")
+
+# ============================
+
+# import PIL
+# import torch
+# from diffusers import FluxControlPipeline, FluxTransformer2DModel
+# from diffusers.utils import load_image
+# from image_gen_aux import DepthPreprocessor
+
+# pipe = FluxControlPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16).to("cuda:6")
+# pipe.load_lora_weights("black-forest-labs/FLUX.1-Depth-dev-lora", adapter_name="depth")
+# pipe.set_adapters("depth", 0.85)
+
+# prompt = "A robot made of exotic candies and chocolates of different kinds. The background is filled with confetti and celebratory gifts."
+# control_image = load_image("https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/robot.png")
+
+# processor = DepthPreprocessor.from_pretrained("LiheYoung/depth-anything-large-hf")
+# control_image = processor(control_image)[0].convert("RGB")
+
+# image = pipe(
+#     prompt=prompt,
+#     control_image=control_image,
+#     height=1024,
+#     width=1024,
+#     num_inference_steps=30,
+#     guidance_scale=10.0,
+#     generator=torch.Generator().manual_seed(42),
+# ).images[0]
+# image.save("output.png")
 
 # ============================
 

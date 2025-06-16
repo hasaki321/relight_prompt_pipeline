@@ -55,21 +55,9 @@ def save_progress():
 
 # --- Placeholder for API/Model Calls ---
 # You need to implement these with your actual model loading and inference logic
-
 def call_llm_api(system_prompt, user_prompt):
     """Placeholder for calling a Large Language Model API."""
     logging.info("Calling LLM API to generate prompts...")
-    # --- Example implementation with OpenAI (replace with your own) ---
-    # client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    # response = client.chat.completions.create(
-    #     model="gpt-4-turbo-preview", # or your preferred model
-    #     response_format={"type": "json_object"},
-    #     messages=[
-    #         {"role": "system", "content": system_prompt},
-    #         {"role": "user", "content": user_prompt}
-    #     ]
-    # )
-    # return response.choices[0].message.content
     api_key = "sk-43c5ff1fb1374626a56c2dba2b7d9789"
     # api_key = os.getenv("OPENAI_API_KEY")
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
@@ -87,70 +75,6 @@ def call_llm_api(system_prompt, user_prompt):
     )
     print(json.loads(response.choices[0].message.content))
     return response.choices[0].message.content
-
-    # -----------------------------------------------------------------
-    # For testing without an API key, return a dummy JSON string
-    # logging.warning("Using dummy LLM response. Implement `call_llm_api` for real use.")
-    # if "editing_sets" in user_prompt:
-    #     return json.dumps({
-    #         "editing_sets": [{
-    #             "set_id": "set_001", "description": "A vintage brass telescope on a wooden tripod, catching the light.",
-    #             "base_generation_prompt": "ultra-realistic product shot of a vintage brass telescope on a mahogany tripod, centered, filling the frame, studio lighting, 8k, sharp focus.",
-    #             "path": None,
-    #             "relighting_prompts": [
-    #                 {"prompt": "The telescope is now illuminated by the soft, golden light of a sunrise streaming through a window.", "path": None},
-    #                 {"prompt": "The telescope is now lit by the harsh, direct beam of a single spotlight from above, creating deep shadows.", "path": None}
-    #             ],
-    #             "video_relighting_prompts": [
-    #                 {"prompt": "A time-lapse of the telescope as the light changes from cool dawn to warm midday sun, with shadows shortening.", "path": None}
-    #             ]
-    #         }]
-    #     })
-    # else:
-    #     return json.dumps({
-    #         "t2v_prompts": [{
-    #             "id": "t2v_001",
-    #             "prompt": "cinematic time-lapse video of a glossy red apple on a table. The light from a window moves across it, causing the highlight to glide over its surface from morning to evening. Static camera.",
-    #             "path": None
-    #         }]
-    #     })
-
-def generate_image(prompt, output_path, model, device):
-    """Placeholder for generating a single image."""
-    logging.info(f"Generating image for: {prompt[:80]}...")
-    # image = model(prompt=prompt, ...).images[0] # Your model call
-    # image.save(output_path)
-    # For testing, create a dummy file
-    # Path(output_path).touch()
-    model.to(device)
-    image = model(prompt).images[0]
-    image.save(output_path)
-    return output_path
-
-def relight_image(base_image_path, prompt, output_path, model, device):
-    """Placeholder for relighting an image."""
-    logging.info(f"Relighting '{base_image_path}' with: {prompt[:80]}...")
-    # image = Image.open(base_image_path)
-    # relit_image = model(prompt=prompt, image=image, ...).images[0]
-    # relit_image.save(output_path)
-    # For testing, create a dummy file
-    Path(output_path).touch()
-    return output_path
-
-def generate_video(prompt, output_path, model, device, base_image_path=None):
-    """Placeholder for T2V or I2V video generation."""
-    task_type = "I2V" if base_image_path else "T2V"
-    logging.info(f"Generating {task_type} video for: {prompt[:80]}...")
-    # if task_type == 'I2V':
-    #     image = Image.open(base_image_path)
-    #     video_frames = model(prompt=prompt, image=image, ...).frames
-    # else: # T2V
-    #     video_frames = model(prompt=prompt, ...).frames
-    # export_to_video(video_frames, output_path) # You need a utility for this
-    # For testing, create a dummy file
-    Path(output_path).touch()
-    return output_path
-
 # --- Pipeline Logic ---
 
 def prompt_generation_pipeline(args):
@@ -182,7 +106,7 @@ def prompt_generation_pipeline(args):
             response_data = json.loads(response_json_str)
 
             for i in range(len(response_data["editing_sets"])):
-                response_data["editing_sets"][i]["set_id"] = f"set_{counter + i}"
+                response_data["editing_sets"][i]["set_id"] = f"set_{editing_counter + i}"
             editing_counter += len(response_data["editing_sets"])
             PROMPT_DATA["editing_sets"].extend(response_data.get("editing_sets", []))
         except (json.JSONDecodeError, KeyError) as e:
@@ -202,7 +126,7 @@ def prompt_generation_pipeline(args):
             response_data = json.loads(response_json_str)
 
             for i in range(len(response_data["t2v_prompts"])):
-                response_data["t2v_prompts"][i]["id"] = f"video_{counter + i}"
+                response_data["t2v_prompts"][i]["id"] = f"video_{video_counter + i}"
             video_counter += len(response_data["t2v_prompts"])
             PROMPT_DATA["t2v_prompts"].extend(response_data.get("t2v_prompts", []))
         except (json.JSONDecodeError, KeyError) as e:
@@ -213,115 +137,6 @@ def prompt_generation_pipeline(args):
     save_progress()
     logging.info(f"Prompt generation complete. Saved to {JSON_SAVE_PATH}")
     return PROMPT_DATA
-
-
-def media_generation_pipeline(args, prompts_dict):
-    """Generates images and videos based on the prompt dictionary."""
-    global PROMPT_DATA, JSON_SAVE_PATH
-    PROMPT_DATA = prompts_dict
-    JSON_SAVE_PATH = args.prompts_file
-
-    # --- Model Loading (placeholders) ---
-    # This is where you would load your models onto the specified GPUs.
-    # We are using placeholders here.
-    # For a real multi-gpu setup, you might create a pool of workers,
-    # each with a model on a specific GPU.
-    logging.info("Loading generation models (placeholder)...")
-    # image_gen_model = AutoPipelineForText2Image.from_pretrained(args.image_generation_model_name, torch_dtype=torch.float16, variant="fp16")
-    # relight_model = InstructPix2PixPipeline.from_pretrained(args.relighting_model_name, torch_dtype=torch.float16)
-    # t2v_model = DiffusionPipeline.from_pretrained(args.T2V_model_name, torch_dtype=torch.float16)
-    # i2v_model = DiffusionPipeline.from_pretrained(args.I2V_model_name, torch_dtype=torch.float16)
-    image_gen_model = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16)
-    models = { "image": image_gen_model, "relight": None, "t2v": None, "i2v": None }
-    
-    # Simple round-robin GPU assignment
-    gpu_cycler = cycle([f"cuda:{g}" for g in args.gpus])
-
-    # --- Task Execution ---
-    base_output_dir = Path(args.prompts_file).stem
-
-    # 1. Generate Base Images
-    logging.info("--- Starting Task 1: Base Image Generation ---")
-    for item in tqdm(PROMPT_DATA["editing_sets"], desc="Base Images"):
-        output_dir = Path(args.prompts_dir) / base_output_dir / "editing" / item["set_id"]
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        path = item.get("path")
-        if path and Path(path).exists():
-            logging.info(f"Skipping existing base image: {path}")
-            continue
-
-        output_path = output_dir / "base_img.png"
-        device = next(gpu_cycler)
-        generate_image(item["base_generation_prompt"], output_path, models["image"], device)
-        item["path"] = str(output_path)
-        save_progress() # Save after each successful generation
-
-    # 2. Generate Relighted Images
-    logging.info("--- Starting Task 2: Relighted Image Generation ---")
-    for item in tqdm(PROMPT_DATA["editing_sets"], desc="Relighting"):
-        base_img_path = item.get("path")
-        if not base_img_path:
-            logging.warning(f"Skipping relighting for {item['set_id']} as base image is missing.")
-            continue
-        
-        output_dir = Path(base_img_path).parent / "relighting"
-        output_dir.mkdir(exist_ok=True)
-        
-        for i, relight_prompt in enumerate(item["relighting_prompts"]):
-            path = relight_prompt.get("path")
-            if path and Path(path).exists():
-                logging.info(f"Skipping existing relighted image: {path}")
-                continue
-
-            output_path = output_dir / f"variant_{i}.png"
-            device = next(gpu_cycler)
-            relight_image(base_img_path, relight_prompt["prompt"], output_path, models["relight"], device)
-            relight_prompt["path"] = str(output_path)
-            save_progress()
-
-    # 3. Generate I2V Videos
-    logging.info("--- Starting Task 3: Image-to-Video Generation ---")
-    for item in tqdm(PROMPT_DATA["editing_sets"], desc="I2V Videos"):
-        base_img_path = item.get("path")
-        if not base_img_path:
-            logging.warning(f"Skipping I2V for {item['set_id']} as base image is missing.")
-            continue
-
-        output_dir = Path(base_img_path).parent / "video"
-        output_dir.mkdir(exist_ok=True)
-
-        for i, video_prompt in enumerate(item["video_relighting_prompts"]):
-            path = video_prompt.get("path")
-            if path and Path(path).exists():
-                logging.info(f"Skipping existing I2V video: {path}")
-                continue
-            
-            output_path = output_dir / f"variant_{i}.mp4"
-            device = next(gpu_cycler)
-            generate_video(video_prompt["prompt"], output_path, models["i2v"], device, base_image_path=base_img_path)
-            video_prompt["path"] = str(output_path)
-            save_progress()
-
-    # 4. Generate T2V Videos
-    logging.info("--- Starting Task 4: Text-to-Video Generation ---")
-    for item in tqdm(PROMPT_DATA["t2v_prompts"], desc="T2V Videos"):
-        output_dir = Path(args.prompts_dir) / base_output_dir / "video"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        path = item.get("path")
-        if path and Path(path).exists():
-            logging.info(f"Skipping existing T2V video: {path}")
-            continue
-
-        output_path = output_dir / f"{item['id']}.mp4"
-        device = next(gpu_cycler)
-        generate_video(item["prompt"], output_path, models["t2v"], device)
-        item["path"] = str(output_path)
-        save_progress()
-        
-    logging.info("All media generation tasks completed.")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Data Generation Pipeline for Video Relighting")
