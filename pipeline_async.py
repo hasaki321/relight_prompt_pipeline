@@ -121,7 +121,7 @@ def batch_relight_images(tasks, model, device):
     logging.info(f"[{device}] Relighting batch of {len(prompts)} images...")
 
     images = [Image.open(p) for p in base_image_paths]
-    images = [img.convert("RGB") for img in processor(images)[0]] 
+    images = [img.convert("RGB") for img in processor(images)] 
     relit_images = model(
         prompt=prompts,
         control_image=images,
@@ -167,6 +167,7 @@ def batch_relight_videos(tasks, model, device):
             guidance_scale=5.0,
             ).frames[0]
         export_to_video(mp4, path, fps=16)
+        logging.info(f"[{device}] Video saved to {path}")
     return output_paths
 
 def batch_generate_videos(tasks, model, device):
@@ -293,6 +294,11 @@ def advanced_media_generation_pipeline(args, prompts_dict):
                     'type': 'relight_image', 'model_name': args.relighting_model_name,
                     'set_idx': i, 'relight_idx': j, 'prompt': p["prompt"],
                     'base_image_path': base_path, 'output_path': str(relight_dir / f"variant_{j}.png")})
+
+    for i, item in enumerate(shared_data["editing_sets"]):
+        base_path = item.get("path")
+        if not base_path or not Path(base_path).exists():
+            continue
         # I2V
         video_dir = Path(base_path).parent / "video"
         video_dir.mkdir(exist_ok=True)
@@ -302,7 +308,7 @@ def advanced_media_generation_pipeline(args, prompts_dict):
                     'type': 'i2v', 'model_name': args.I2V_model_name,
                     'set_idx': i, 'video_idx': j, 'prompt': p["prompt"],
                     'base_image_path': base_path, 'output_path': str(video_dir / f"variant_i2v_{j}.mp4")})
-
+    # print(all_tasks[args.I2V_model_name])
     # Task 4: T2V Video Generation
     for i, item in enumerate(shared_data["t2v_prompts"]):
         if not item.get("path") or not Path(item.get("path")).exists():
@@ -316,7 +322,7 @@ def advanced_media_generation_pipeline(args, prompts_dict):
     total_batches = 0
     for model_name, tasks in all_tasks.items():
         batch_size = args.batch_size
-        if "Wan" or "Vace" in model_name: batch_size = 2 #math.ceil(batch_size / 3)
+        if ("Wan" in model_name) or ("Vace" in model_name): batch_size = 2 #math.ceil(batch_size / 3)
         logging.info(f"Creating {len(tasks)} tasks for model {model_name} with batch size {batch_size}")
         for i in range(0, len(tasks), batch_size):
             task_queue.put(tasks[i:i + batch_size])
