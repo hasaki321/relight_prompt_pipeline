@@ -59,3 +59,7 @@ pipeline_async:
 - [x] FLUX-depth-lora: https://huggingface.co/black-forest-labs/FLUX.1-Depth-dev-lora 
 - [x] FLUX-depth: https://huggingface.co/black-forest-labs/FLUX.1-Depth-dev
 - [x] Instruct-pix2pix: https://huggingface.co/timbrooks/instruct-pix2pix 
+
+
+### access token
+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
