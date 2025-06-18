@@ -12,16 +12,50 @@
     3. 通过给定图像结合AI给出的prompt生成视频 （I2V， 此方案可用模型更多，更实惠）**[TODO: 寻找更多开源实现]**
     4. 已经造好的视频继续分解？不太清楚流程
 
+---
+## 运行
+
+### prompt
+提供了prompts示例，详见 `example_prompts`, 完整的造数据prompt包含
+- 系统级 背景提示： background.txt
+- 图像编辑&I2V生成： editing_task.txt
+- T2V生成： video_task.txt
+- 任务数量要求： 要求生成任务数量指引（位于代码中，可通过参数调节）
+
+### 运行
+分为获取prompt的pipeline `pipeline_prompt.py` 以及通过prompt执行推理的pipeline `pipeline_async.py`
+
+pipeline_prompt:
+- 目前使用ds-v3的apikey，可以替换成gpt或者gemini等更优模型
+- prompts_batch_size 控制一次请求要求生成的prompt集合数
+- num_img_sets： 控制图像生成prompt集合数量
+    - num_relight_vairant： 控制图像编辑重打光prompt数量
+    - num_video_vairant： 控制I2V prompt数量
+- num_videos： 控制生成T2V prompt数量
+
+pipeline_async:
+- batch_size： 图像生成bs， 视频为 ceil(batch_size / 5)
+- prompts_dir： 包含prompt txt的目录
+- prompts_file： 先前生成的prompt json文件
+- gpus： 使用的gpu id
 
 ---
+## 模型
 
-### 造prompt
-详见 `prompt.md`
+### I2V
+- [x] Van2.1-14B-720p: https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-720P-Diffusers (81frames/ 30min)
+- [x] Van2.1-14B-480p: https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-480P-Diffusers (81frames/ 16min)
+
+### T2V
+- [x] Van2.1-14B-720p: https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-720P-Diffusers (81frames/ 30min)
+- [x] Van2.1-14B-480p: https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-480P-Diffusers (81frames/ 16min)
+- [] Vace-1.3B： https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B-diffusers
+- [] Vace-14B: https://huggingface.co/Wan-AI/Wan2.1-VACE-14B-diffusers
 
 ### 通过prompt生成图像
-
-- FLUX: https://huggingface.co/black-forest-labs/FLUX.1-dev
+- [x] FLUX: https://huggingface.co/black-forest-labs/FLUX.1-dev
 
 ### 通过 图像+prompt 重打光
-
-- Instruct-pix2pix: https://huggingface.co/timbrooks/instruct-pix2pix
+- [x] FLUX-depth-lora: https://huggingface.co/black-forest-labs/FLUX.1-Depth-dev-lora 
+- [x] FLUX-depth: https://huggingface.co/black-forest-labs/FLUX.1-Depth-dev
+- [x] Instruct-pix2pix: https://huggingface.co/timbrooks/instruct-pix2pix 
