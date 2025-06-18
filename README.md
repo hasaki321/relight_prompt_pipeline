@@ -60,6 +60,26 @@ pipeline_async:
 - [x] FLUX-depth: https://huggingface.co/black-forest-labs/FLUX.1-Depth-dev
 - [x] Instruct-pix2pix: https://huggingface.co/timbrooks/instruct-pix2pix 
 
+## 生成文件格式
+```
+.
+├──prompts_1 （生成结果）
+│   ├── editing
+│   │   ├── set_0
+│   │   │   ├── base_img.png （图像生成）
+│   │   │   ├── relighting
+│   │   │   │   ├── variant_0.png （图像编辑重打光）
+│   │   │   │   ├── variant_1.png
+│   │   │   │   └── variant_2.png
+│   │   │   └── video
+│   │   │       └── variant_i2v_0.mp4 （I2V）
+│   │   ├── ...
+│   ├── video
+│   │   ├── video_0.mp4 （T2V）
+│   │   ...
+├── prompts_1.json (生成对应的 prompts)
+```
 
-### access token
-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
+
+## access token
+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
