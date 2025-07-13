@@ -1,16 +1,3 @@
-import os
-import json
-import argparse
-import sys
-import logging
-from pathlib import Path
-from collections import defaultdict
-import time
-import traceback
-import queue  # <-- Added import
-import math
-import numpy as np
-
 import torch
 import torch.multiprocessing as mp
 from multiprocessing import Manager
@@ -25,30 +12,19 @@ from diffusers import FluxControlPipeline, FluxTransformer2DModel
 from transformers import CLIPVisionModel
 from image_gen_aux import DepthPreprocessor
 
-from huggingface_hub import login
-os.environ['HF_HOME'] = '/home/herongshen/relighting/models'
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-login(token="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")
+from transformers import AutoModelForImageSegmentation
 
-WIDTH=1280
-HEIGHT=720
+from copy import deepcopy
+from torchvision.transforms import ToPILImage, ToTensor
 
-# --- Basic Setup ---
-# This is safe at the global level as it only configures logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(processName)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
-)
+from generation_core import *
 
-# --- Placeholder for Model Loading & Generation ---
-# Implement your actual model loading and inference logic here.
 
 def load_model(model_name, device):
     """Loads a model onto a specific device."""
     logging.info(f"[{device}] Loading model: {model_name}...")
     if "FLUX.1-Depth-dev-lora" in model_name:
-        model = FluxControlPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16).to("cuda:6")
+        model = FluxControlPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16).to("cuda")
         model.load_lora_weights("black-forest-labs/FLUX.1-Depth-dev-lora", adapter_name="depth")
         model.set_adapters("depth", 0.85)
         model.to(device)
@@ -80,6 +56,35 @@ def load_model(model_name, device):
         vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32)
         model = WanImageToVideoPipeline.from_pretrained(model_id, vae=vae, image_encoder=image_encoder, torch_dtype=torch.bfloat16)
         model.to(device)
+    ## import lbm, Modified by wangzh
+    elif "lbm" in model_name or 'jasperai/LBM_relighting' in model_name:
+        from lbm.inference import evaluate, get_model, extract_object, resize_and_center_crop 
+        
+        sys.path.insert(0, str(MODEL_ROOT / 'LBM' / 'src'))
+        lbm_model = get_model(
+                "jasperai/LBM_relighting",
+                torch_dtype=torch.bfloat16,
+                )
+        lbm_model.to(device)
+
+        # pipe to generate background
+        lbm_t2i_pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16)
+        lbm_t2i_pipe.to(device)
+        
+        ## loading birefnet
+        birefnet = AutoModelForImageSegmentation.from_pretrained(
+            "ZhengPeng7/BiRefNet", trust_remote_code=True
+        )
+        birefnet.to(device)
+
+        logging.info(f"Loading lbm model, flux-dev and birefnet successfully...")
+        model = (lbm_t2i_pipe, birefnet)
+
+    ## import IC-Light, Modified by wangzh
+    elif "iclight" in model_name or 'lllyasviel/IC-Light' in model_name:
+        sys.path.insert(0, str(MODEL_ROOT / 'IC-Light'))
+        from gradio_demo import process_relight ## process_relight is a function defined in gradio_demo.py
+        model = process_relight
     else:
         time.sleep(1)  # Simulate model loading time
         logging.info(f"[{device}] Model {model_name} loaded.")
@@ -93,103 +98,6 @@ def unload_model(model):
         del model
         torch.cuda.empty_cache()
         logging.info(f"[Memory cleared.]")
-
-def batch_generate_images(tasks, model, device):
-    """Generates a batch of images."""
-    prompts = [task['prompt'] for task in tasks]
-    output_paths = [task['output_path'] for task in tasks]
-    logging.info(f"[{device}] Generating batch of {len(prompts)} images...")
-
-    images = model(
-        prompt=prompts, 
-        num_inference_steps=50, 
-        guidance_scale=3.5,
-        width=WIDTH,
-        height=HEIGHT,
-    ).images
-    for img, path in zip(images, output_paths):
-        img.save(path)
-
-    return output_paths
-
-def batch_relight_images(tasks, model, device):
-    """Relights a batch of images."""
-    model, processor = model
-    prompts = [task['prompt'] for task in tasks]
-    base_image_paths = [task['base_image_path'] for task in tasks]
-    output_paths = [task['output_path'] for task in tasks]
-    logging.info(f"[{device}] Relighting batch of {len(prompts)} images...")
-
-    images = [Image.open(p) for p in base_image_paths]
-    images = [img.convert("RGB") for img in processor(images)] 
-    relit_images = model(
-        prompt=prompts,
-        control_image=images,
-        width=WIDTH,
-        height=HEIGHT,
-        num_inference_steps=30,
-        guidance_scale=10.0,
-    ).images
-    for img, path in zip(relit_images, output_paths):
-        img.save(path)
-
-    return output_paths
-
-def batch_relight_videos(tasks, model, device):
-    """Generates a batch of videos (T2V or I2V)."""
-    prompts = [task['prompt'] for task in tasks]
-    base_image_paths = [task['base_image_path'] for task in tasks]
-    output_paths = [task['output_path'] for task in tasks]
-
-    logging.info(f"[{device}] Relighting batch of {len(prompts)} videos...")
-
-    # height = HEIGHT
-    # width = WIDTH
-    height = 480
-    width = 832
-    max_area = height * width
-    aspect_ratio = height / width
-    mod_value = model.vae_scale_factor_spatial * model.transformer.config.patch_size[1]
-    height = round(np.sqrt(max_area * aspect_ratio)) // mod_value * mod_value
-    width = round(np.sqrt(max_area / aspect_ratio)) // mod_value * mod_value
-    images = [Image.open(p).resize((width, height)) for p in base_image_paths]
-
-    negative_prompts = ["Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"] * len(tasks)
-
-    for i, path in enumerate(output_paths):
-        mp4 = model(
-            image=images[i],
-            prompt=prompts[i],
-            negative_prompt=negative_prompts[i],
-            height=height,
-            width=width,
-            num_frames=81,
-            guidance_scale=5.0,
-            ).frames[0]
-        export_to_video(mp4, path, fps=16)
-        logging.info(f"[{device}] Video saved to {path}")
-    return output_paths
-
-def batch_generate_videos(tasks, model, device):
-    """Generates a batch of videos (T2V or I2V)."""
-    prompts = [task['prompt'] for task in tasks]
-    output_paths = [task['output_path'] for task in tasks]
-
-    logging.info(f"[{device}] Generating batch of {len(prompts)} videos...")
-
-    negative_prompts = ["Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"] * len(tasks)
-
-    frames = model(
-         prompt=prompts,
-         negative_prompt=negative_prompts,
-         height=480,
-         width=832,
-         num_frames=81,
-         guidance_scale=5.0,
-        ).frames
-    for mp4, path in zip(frames, output_paths):
-        export_to_video(mp4, path, fps=16)
-    return output_paths
 
 # --- The Worker Process ---
 def worker(task_queue, shared_data_proxy, data_lock, args, device):
@@ -208,6 +116,9 @@ def worker(task_queue, shared_data_proxy, data_lock, args, device):
                 break
             task_type = task_batch[0]['type']
             model_name = task_batch[0]['model_name']
+            batch_id = task_batch[0].get('batch_id', 'N/A')
+            task_ids = [task.get('task_id', 'N/A') for task in task_batch]
+            logging.info(f"[{process_name}] Processing batch_id={batch_id}, task_ids={task_ids}, type={task_type}")
 
             if model_name != current_model_name:
                 unload_model(current_model)
@@ -222,6 +133,10 @@ def worker(task_queue, shared_data_proxy, data_lock, args, device):
                 batch_relight_videos(task_batch, current_model, device)
             elif task_type == 't2v':
                 batch_generate_videos(task_batch, current_model, device)
+            elif task_type == 'iclight': 
+                batch_iclight_images(task_batch, current_model, device)
+            elif task_type == 'lbm': 
+                batch_lbm_images(task_batch, current_model, device)
 
             with data_lock:
                 # To modify the shared dict proxy, we need to get it, modify it, and set it back
@@ -236,7 +151,11 @@ def worker(task_queue, shared_data_proxy, data_lock, args, device):
                         current_data['editing_sets'][task['set_idx']]['video_relighting_prompts'][task['video_idx']]['path'] = task['output_path']
                     elif task['type'] == 't2v':
                         current_data['t2v_prompts'][task['video_idx']]['path'] = task['output_path']
-                
+                    elif task['type'] == 'iclight':
+                        current_data['editing_sets'][task['set_idx']]['relighting_prompts'][task['relight_idx']]['iclight_path'] = task['output_path']
+                    elif task['type'] == 'lbm':
+                        current_data['editing_sets'][task['set_idx']]['relighting_prompts'][task['relight_idx']]['lbm_path'] = task['output_path']
+
                 # Update the shared proxy
                 shared_data_proxy.update(current_data)
 
@@ -245,6 +164,7 @@ def worker(task_queue, shared_data_proxy, data_lock, args, device):
                     json.dump(current_data, f, indent=4, ensure_ascii=False)
             
             logging.info(f"[{process_name}] Completed batch of {len(task_batch)} {task_type} tasks. Progress saved.")
+            logging.info(f"[{process_name}] Completed batch_id={batch_id}, type={task_type}, task_ids={task_ids}")
 
         except queue.Empty:
             # This should not happen with a blocking get(), but is good practice
@@ -280,7 +200,7 @@ def advanced_media_generation_pipeline(args, prompts_dict):
                 'set_idx': i, 'prompt': item["base_generation_prompt"],
                 'output_path': str(output_dir / "base_img.png")})
 
-    # Task 2, 3: Relighting and I2V
+    # Task 2: Religting images with IC-Light and LBM
     for i, item in enumerate(shared_data["editing_sets"]):
         base_path = item.get("path")
         if not base_path or not Path(base_path).exists():
@@ -289,26 +209,58 @@ def advanced_media_generation_pipeline(args, prompts_dict):
         relight_dir = Path(base_path).parent / "relighting"
         relight_dir.mkdir(exist_ok=True)
         for j, p in enumerate(item["relighting_prompts"]):
-            if not p.get("path") or not Path(p.get("path")).exists():
-                 all_tasks[args.relighting_model_name].append({
-                    'type': 'relight_image', 'model_name': args.relighting_model_name,
-                    'set_idx': i, 'relight_idx': j, 'prompt': p["prompt"],
-                    'base_image_path': base_path, 'output_path': str(relight_dir / f"variant_{j}.png")})
+            if not p.get("iclight_path") or not Path(p.get("iclight_path")).exists():
+                all_tasks[args.iclight_model].append({
+                    'type': 'iclight', 'model_name': args.iclight_model,
+                    'set_idx': i,
+                    'relight_idx': j, 
+                    'prompt': p["prompt"],
+                    'background_prompt': p["background_prompt"],
+                    'lighting_prompt': p['lighting_prompt'],
+                    'base_image_path': base_path,
+                    'output_path': str(relight_dir / f"iclight_{j}.png")})
+                
+            if not p.get("lbm_path") or not Path(p.get("lbm_path")).exists():
+                all_tasks[args.lbm_model].append({
+                    'type': 'lbm', 'model_name': args.lbm_model,
+                    'set_idx': i,
+                    'relight_idx': j,  
+                    'prompt': p["prompt"],
+                    'background_prompt': p["background_prompt"],
+                    'lighting_prompt': p['lighting_prompt'],
+                    'base_image_path': base_path,
+                    'output_path': str(relight_dir / f"lbm_{j}.png")})
+
+    # Task 2, 3: Relighting and I2V
+    # for i, item in enumerate(shared_data["editing_sets"]):
+    #     base_path = item.get("path")
+    #     if not base_path or not Path(base_path).exists():
+    #         continue
+    #     # Relighting
+    #     relight_dir = Path(base_path).parent / "relighting"
+    #     relight_dir.mkdir(exist_ok=True)
+    #     for j, p in enumerate(item["relighting_prompts"]):
+    #         if not p.get("path") or not Path(p.get("path")).exists():
+    #              all_tasks[args.relighting_model_name].append({
+    #                 'type': 'relight_image', 'model_name': args.relighting_model_name,
+    #                 'set_idx': i, 'relight_idx': j, 'prompt': p["prompt"],
+    #                 'base_image_path': base_path, 'output_path': str(relight_dir / f"variant_{j}.png")})
 
     for i, item in enumerate(shared_data["editing_sets"]):
         base_path = item.get("path")
         if not base_path or not Path(base_path).exists():
             continue
+
         # I2V
         video_dir = Path(base_path).parent / "video"
         video_dir.mkdir(exist_ok=True)
         for j, p in enumerate(item["video_relighting_prompts"]):
-             if not p.get("path") or not Path(p.get("path")).exists():
-                 all_tasks[args.I2V_model_name].append({
+            if not p.get("path") or not Path(p.get("path")).exists():
+                all_tasks[args.I2V_model_name].append({
                     'type': 'i2v', 'model_name': args.I2V_model_name,
                     'set_idx': i, 'video_idx': j, 'prompt': p["prompt"],
                     'base_image_path': base_path, 'output_path': str(video_dir / f"variant_i2v_{j}.mp4")})
-    # print(all_tasks[args.I2V_model_name])
+                 
     # Task 4: T2V Video Generation
     for i, item in enumerate(shared_data["t2v_prompts"]):
         if not item.get("path") or not Path(item.get("path")).exists():
@@ -320,12 +272,20 @@ def advanced_media_generation_pipeline(args, prompts_dict):
                 'output_path': str(output_dir / f"{item['id']}.mp4")})
 
     total_batches = 0
+    task_id = 0
     for model_name, tasks in all_tasks.items():
         batch_size = args.batch_size
         if ("Wan" in model_name) or ("Vace" in model_name): batch_size = 2 #math.ceil(batch_size / 3)
         logging.info(f"Creating {len(tasks)} tasks for model {model_name} with batch size {batch_size}")
         for i in range(0, len(tasks), batch_size):
-            task_queue.put(tasks[i:i + batch_size])
+            task_batch = tasks[i:i + batch_size]
+
+            for task in task_batch:
+                task['task_id'] = task_id
+                task['batch_id'] = total_batches
+                task_id += 1
+
+            task_queue.put(task_batch)
             total_batches += 1
     
     if total_batches == 0:
@@ -333,6 +293,10 @@ def advanced_media_generation_pipeline(args, prompts_dict):
         return
 
     logging.info(f"Populated queue with {total_batches} batches of tasks.")
+
+    ## Adding sentinel values to signal workers to exit
+    for _ in range(len(args.gpus)):
+        task_queue.put(None)
 
     processes = []
 
@@ -345,45 +309,3 @@ def advanced_media_generation_pipeline(args, prompts_dict):
         p.join()
 
     logging.info("All worker processes have finished.")
-
-
-def main():
-    """Main execution function"""
-    parser = argparse.ArgumentParser(description="Advanced Data Generation Pipeline")
-    # Add all your arguments here
-    parser.add_argument('--mode', type=str, default='generation-only', choices=['prompt-only', 'generation-only', 'all'])
-    parser.add_argument('--prompts_dir', type=str, default='./prompt')
-    parser.add_argument('--prompts_file', type=str, required=True, help="Path to the JSON file with prompts.")
-    parser.add_argument('--gpus', nargs='+', type=int, default=[0], help="List of GPU IDs to use.")
-    parser.add_argument('--batch_size', type=int, default=5, help="Batch size for media generation on each GPU.")
-    parser.add_argument('--image_generation_model_name', type=str, default="black-forest-labs/FLUX.1-dev")
-    parser.add_argument('--relighting_model_name', type=str, default="black-forest-labs/FLUX.1-Depth-dev-lora")
-    parser.add_argument('--T2V_model_name', type=str, default="Wan-AI/Wan2.1-T2V-14B-Diffusers")
-    parser.add_argument('--I2V_model_name', type=str, default="Wan-AI/Wan2.1-I2V-14B-480P-Diffusers")
-    # ... add prompt generation args if needed for 'all' or 'prompt-only' modes
-    args = parser.parse_args()
-    
-    # Placeholder for prompt generation logic if mode is 'all' or 'prompt-only'
-    if args.mode in ['prompt-only', 'all']:
-        logging.error("Prompt generation logic is not included in this script version. Please run in 'generation-only' mode.")
-        # Here you would call your prompt_generation_pipeline
-        sys.exit(1)
-
-    if not Path(args.prompts_file).exists():
-        logging.error(f"Prompts file not found: {args.prompts_file}. Cannot run in 'generation-only' mode.")
-        sys.exit(1)
-        
-    with open(args.prompts_file, 'r', encoding='utf-8') as f:
-        prompts_dict = json.load(f)
-
-    advanced_media_generation_pipeline(args, prompts_dict)
-
-
-# This is the crucial part!
-if __name__ == '__main__':
-    # Set the start method for multiprocessing, must be done once and inside the __main__ block.
-    # 'spawn' is required for CUDA safety.
-    mp.set_start_method('spawn', force=True)
-    
-    # Call the main function to start the program
-    main()

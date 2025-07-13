@@ -1,2 +1,6 @@
 models/
 prompt/
+relight_env
+data_engineer/
+demo_prompts/prompt*
+demo_prompts/*.json

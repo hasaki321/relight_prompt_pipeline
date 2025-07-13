@@ -1,0 +1,33 @@
+Generate a list of unique image sets for base generation and subsequent relighting/video tasks.
+
+Strictly adhere to ALL principles ("Isolated background lighting", "Adherence Lighting", "Isolated Subject", "Dynamic Lighting") defined in the system prompt. The generated subject should include a 50% proportion of human portraits and a 50% proportion of items.
+
+Follow this exact JSON structure:
+
+{
+  "editing_sets": [
+    {
+      "set_id": "string (e.g., set_001)",
+      "description": "string (A brief, human-readable summary of the scene, e.g., 'A ceramic vase by a window during different times of day.')",
+      "base_generation_prompt": "string (// Follow 'Isolated Subject Principle' strictly)",
+      "path": null,
+      "relighting_prompts": [
+        {
+          "prompt": "string (// Follow 'Invariance Principle' strictly. Describe ONLY the change in light/environment.)", 
+          "path": null,
+          'background_prompt': "string (// Follow 'Isolated background lighting Principle' strictly)",
+          'lighting_prompt' : "string (// Follow 'Adherence Lighting Principle' strictly)",
+        },
+        {
+          "prompt": "string (// Another variation following the 'Invariance Principle'.)", 
+          "path": null,
+          'background_prompt': "string (// Follow 'Isolated background lighting Principle' strictly)",
+          'lighting_prompt' : "string (// Follow 'Adherence Lighting Principle' strictly, You can only remove the scene description in the background_prompt, and cannot modify any other words)",
+        }
+      ],
+      "video_relighting_prompts": [
+        {"prompt": "string (// Follow 'Dynamic Lighting Principle' strictly. This is for I2V.)", "path": null}
+      ]
+    }
+  ]
+}

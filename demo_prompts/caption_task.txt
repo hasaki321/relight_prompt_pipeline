@@ -1,0 +1,21 @@
+Generate the detailed lighting description in the image.
+
+Strictly adhere to ALL principles defined in the system prompt.
+
+Follow this exact JSON structure:
+
+{
+  "lighting_description": {
+    "light_source_count_and_type": "e.g., Two light sources: a key spotlight and a fill ambient light.",
+    "light_source_position_and_direction": "e.g., Key light coming from the upper-left front, fill light from bottom right.",
+    "light_color_and_temperature": "e.g., Warm orange tone for the spotlight (~3200K), neutral white ambient (~5000K).",
+    "light_intensity_and_contrast": "e.g., High-intensity key light with strong contrast against low ambient fill.",
+    "shadow_properties": "e.g., Distinct shadows cast to the right with soft penumbra, moderate length.",
+    "lighting_distribution": "e.g., Directional and focused lighting on subject, falloff toward background.",
+    "indirect_or_reflected_light": "e.g., Mild orange bounce from nearby floor onto the subject's lower body.",
+    "environmental_lighting_influence": "e.g., No influence from environment; background is isolated and neutral.",
+    "special_light_effects": "e.g., Subtle rim light on subject's edges, no volumetric or caustic effects.",
+    "summary": "The subject is illuminated by a warm, high-intensity spotlight from the upper-left, casting natural shadows that stretch rightward with soft edges. A faint ambient fill light from the bottom right helps reduce harsh contrast, while slight orange bounce from the surface adds realism to the lower half of the scene. The lighting is focused, directional, and photorealistic, emphasizing the form and texture of the subject against a clean, neutral backdrop."
+  }
+}
+

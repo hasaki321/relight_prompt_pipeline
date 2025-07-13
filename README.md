@@ -23,9 +23,11 @@
 - 任务数量要求： 要求生成任务数量指引（位于代码中，可通过参数调节）
 
 ### 运行
-分为获取prompt的pipeline `pipeline_prompt.py` 以及通过prompt执行推理的pipeline `pipeline_async.py`
+```
+bash ./run_pipe.sh
+```
 
-pipeline_prompt:
+prompt:
 - 目前使用ds-v3的apikey，可以替换成gpt或者gemini等更优模型
 - prompts_batch_size 控制一次请求要求生成的prompt集合数
 - num_img_sets： 控制图像生成prompt集合数量
@@ -33,7 +35,7 @@ pipeline_prompt:
     - num_video_vairant： 控制I2V prompt数量
 - num_videos： 控制生成T2V prompt数量
 
-pipeline_async:
+generation:
 - batch_size： 图像生成bs， 视频为 ceil(batch_size / 5)
 - prompts_dir： 包含prompt txt的目录
 - prompts_file： 先前生成的prompt json文件
@@ -79,7 +81,3 @@ pipeline_async:
 │   │   ...
 ├── prompts_1.json (生成对应的 prompts)
 ```
-
-
-## access token
-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

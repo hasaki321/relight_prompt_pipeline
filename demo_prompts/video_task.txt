@@ -1,0 +1,20 @@
+Generate a list of unique prompts for text-to-video (T2V) generation.
+
+Strictly adhere to the "Isolated Subject" and "Dynamic Lighting" principles defined in the system prompt. The generated subject should include a 50% proportion of human portraits and a 50% proportion of items. The camera lens should have smooth movement/lens transformation to emphasize the lighting effect.
+
+Follow this exact JSON structure:
+
+{
+  "t2v_prompts": [
+    {
+      "id": "string (e.g., t2v_001)",
+      "prompt": "string (// A complete T2V prompt following the principles.)",
+      "path": null
+    },
+    {
+      "id": "string (e.g., t2v_002)",
+      "prompt": "string (// Another complete T2V prompt.)",
+      "path": null
+    }
+  ]
+}
