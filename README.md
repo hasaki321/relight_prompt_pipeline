@@ -22,8 +22,18 @@
 - T2V生成： video_task.txt
 - 任务数量要求： 要求生成任务数量指引（位于代码中，可通过参数调节）
 
-### 运行
+
+### 安装
+```bash
+conda create -n relight python=3.12 -y
+conda activate relight
+
+pip install -r requirements.txt
 ```
+
+
+### 运行
+```bash
 bash ./run_pipe.sh
 ```
 

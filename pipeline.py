@@ -32,7 +32,7 @@ from generation import *
 from prompt import *
 
 # os.environ['HF_HOME'] = '/mnt/data/sysu/Users/wangzh/ID-Relight/models' # modified from '/home/herongshen/relighting/models'
-os.environ['HF_HOME'] = '/home/herongshen/relighting/models'
+# os.environ['HF_HOME'] = '/home/herongshen/relighting/models'
 
 # os.environ['OPENAI_API_KEY'] = 'sk-43c5ff1fb1374626a56c2dba2b7d9789'
 # os.environ['BASE_URL'] = 'https://api.deepseek.com'
@@ -49,6 +49,9 @@ MODEL_ROOT = Path('/mnt/data/sysu/Users/wangzh/ID-Relight/repo')
                        
 WIDTH=1024
 HEIGHT=1024
+
+os.environ['WIDTH'] = WIDTH
+os.environ['HEIGHT'] = HEIGHT
 
 # --- Basic Setup ---
 # This is safe at the global level as it only configures logging

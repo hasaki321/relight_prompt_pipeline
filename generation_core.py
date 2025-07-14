@@ -16,6 +16,9 @@ import torch.multiprocessing as mp
 from multiprocessing import Manager
 from PIL import Image
 
+WIDTH= os.getenv("WIDTH")
+HEIGHT= os.getenv("HEIGHT")
+
 def batch_generate_images(tasks, model, device):
     """Generates a batch of images."""
     prompts = [task['prompt'] for task in tasks]
