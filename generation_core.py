@@ -15,9 +15,10 @@ import torch
 import torch.multiprocessing as mp
 from multiprocessing import Manager
 from PIL import Image
+from diffusers.utils import export_to_video, load_image
 
-WIDTH= os.getenv("WIDTH")
-HEIGHT= os.getenv("HEIGHT")
+WIDTH= int(os.getenv("WIDTH"))
+HEIGHT= int(os.getenv("HEIGHT"))
 
 def batch_generate_images(tasks, model, device):
     """Generates a batch of images."""

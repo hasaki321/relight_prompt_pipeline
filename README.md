@@ -33,9 +33,20 @@ pip install -r requirements.txt
 
 
 ### 运行
+
+#### 单卡数据流水线推理
+卡显存足够时（A100 80G）：
 ```bash
-bash ./run_pipe.sh
+python pipeline.py --mode all --num_img_sets 20 --num_videos 10 --num_relight_vairant 3 --num_video_vairant 1 --prompts_batch_size 10 --gpus 1 2 3 --prompts_dir ./demo_prompts
 ```
+
+#### 单卡流水线推理（图片） & 多卡张量并行推理（视频）
+初次运行创建accelerate配置文件，注意这里我们已经预先创建好了，接下来直接运行即可
+```bash
+accelerate config
+```
+
+#### 简要参数说明
 
 prompt:
 - 目前使用ds-v3的apikey，可以替换成gpt或者gemini等更优模型

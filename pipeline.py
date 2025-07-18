@@ -28,8 +28,6 @@ from image_gen_aux import DepthPreprocessor
 
 from huggingface_hub import login
 
-from generation import *
-from prompt import *
 
 # os.environ['HF_HOME'] = '/mnt/data/sysu/Users/wangzh/ID-Relight/models' # modified from '/home/herongshen/relighting/models'
 # os.environ['HF_HOME'] = '/home/herongshen/relighting/models'
@@ -50,8 +48,12 @@ MODEL_ROOT = Path('/mnt/data/sysu/Users/wangzh/ID-Relight/repo')
 WIDTH=1024
 HEIGHT=1024
 
-os.environ['WIDTH'] = WIDTH
-os.environ['HEIGHT'] = HEIGHT
+os.environ['WIDTH'] = str(WIDTH)
+os.environ['HEIGHT'] = str(HEIGHT)
+
+from generation import *
+from prompt import *
+
 
 # --- Basic Setup ---
 # This is safe at the global level as it only configures logging
